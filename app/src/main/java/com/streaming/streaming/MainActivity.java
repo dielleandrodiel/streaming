@@ -1,52 +1,139 @@
 package com.streaming.streaming;
 
-import android.os.Bundle;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.Toolbar;
-import android.view.View;
-import android.view.Menu;
-import android.view.MenuItem;
+import java.io.IOException;
 
-public class MainActivity extends AppCompatActivity {
+import android.app.Activity;
+import android.content.Context;
+import android.media.AudioManager;
+import android.media.MediaPlayer;
+import android.media.MediaPlayer.OnBufferingUpdateListener;
+import android.media.MediaPlayer.OnPreparedListener;
+import android.os.Bundle;
+import android.util.Log;
+import android.view.View;
+import android.view.View.OnClickListener;
+import android.widget.SeekBar;
+import android.widget.SeekBar.OnSeekBarChangeListener;
+import android.widget.Toast;
+import android.widget.ToggleButton;
+
+public class MainActivity extends Activity {
+
+    private MediaPlayer player;
+    private String url = "http://200.58.106.247:8512";
+    protected boolean isPlay = false;
+    private ToggleButton buttonStreaming;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
 
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener() {
+        // Inicializo el objeto MediaPlayer
+        initializeMediaPlayer();
+
+        // Inicializando el volumen
+        initializeVolume();
+
+        buttonStreaming = (ToggleButton) findViewById(R.id.playPauseButton);
+        buttonStreaming.setOnClickListener(new OnClickListener() {
+
             @Override
-            public void onClick(View view) {
-                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();
+            public void onClick(View arg0) {
+                buttonStreaming.setEnabled(false);
+                isPlay = !isPlay;
+
+                if (isPlay) {
+                    startPlaying();
+                } else {
+                    stopPlaying();
+                }
             }
         });
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
+    public void stopPlaying() {
+        if (player.isPlaying()) {
+            player.stop();
+            player.release();
+            initializeMediaPlayer();
+            buttonStreaming.setEnabled(true);
+        }
     }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
+    private void initializeVolume() {
+        try {
+            final SeekBar volumeBar = (SeekBar) findViewById(R.id.volumeSeekBar);
+            final AudioManager audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
+            volumeBar.setMax(audioManager
+                    .getStreamMaxVolume(AudioManager.STREAM_MUSIC));
+            volumeBar.setProgress(audioManager
+                    .getStreamVolume(AudioManager.STREAM_MUSIC));
+
+            final OnSeekBarChangeListener eventListener = new OnSeekBarChangeListener() {
+                @Override
+                public void onStopTrackingTouch(SeekBar seekBar) {
+                }
+
+                @Override
+                public void onStartTrackingTouch(SeekBar seekBar) {
+                }
+
+                @Override
+                public void onProgressChanged(SeekBar seekBar, int progress,
+                                              boolean fromUser) {
+                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC,
+                            progress, 0);
+                }
+            };
+
+            volumeBar.setOnSeekBarChangeListener(eventListener);
+        } catch (Exception e) {
+            Log.e("MainActivity", e.getMessage());
+        }
+    }
+
+    private void initializeMediaPlayer() {
+        player = new MediaPlayer();
+
+        player.setOnBufferingUpdateListener(new OnBufferingUpdateListener() {
+
+            public void onBufferingUpdate(MediaPlayer mp, int percent) {
+                Log.i("Buffering", "" + percent);
+            }
+        });
+    }
+
+    public void startPlaying() {
+
+        try {
+
+            Toast.makeText(getApplicationContext(),
+                    "Conectando con el partido, espere unos segundos...",
+                    Toast.LENGTH_LONG).show();
+
+            player.reset();
+            player.setDataSource(url);
+            player.setAudioStreamType(AudioManager.STREAM_MUSIC);
+
+            player.setOnPreparedListener(new OnPreparedListener() {
+
+                public void onPrepared(MediaPlayer mp) {
+
+                    player.start();
+                    buttonStreaming.setEnabled(true);
+                }
+            });
+
+            player.prepareAsync();
+
+        } catch (IllegalArgumentException | SecurityException
+                | IllegalStateException | IOException e) {
+            Toast.makeText(getApplicationContext(),
+                    "Error al conectar con la radio", Toast.LENGTH_LONG).show();
         }
 
-        return super.onOptionsItemSelected(item);
     }
+
 }
